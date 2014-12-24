@@ -17,19 +17,27 @@ import jp.crudefox.mymon.picturetool.util.BaseUrl;
 public class ApiUrl extends BaseUrl {
 
     public static final String SCHEME = "http://";
-    public static final String HOST_AND_PORT = "192.168.1.11:9000";
+    //public static final String HOST_AND_PORT = "192.168.1.11:9000";
     //public static final String HOST_AND_PORT = "192.168.11.20:9000";
     //public static final String HOST_AND_PORT = "192.168.11.3:9000";
-    //public static final String HOST_AND_PORT = "192.168.11.34:9000";
+    public static final String DEFAULT_HOST_AND_PORT = "192.168.11.34:9000";
     //public static final String HOST_AND_PORT = "www9108up.sakura.ne.jp:9000";
 
     public static final String API = "api";
     public static final String VERSION = "v0";
 
     private ApiMethod mApiMethod;
+    private String mHostAndPort;
 
     public ApiUrl(ApiMethod apiMethod)
     {
+        mHostAndPort = DEFAULT_HOST_AND_PORT;
+        mApiMethod = apiMethod;
+    }
+    
+    public ApiUrl(String hostAndPort, ApiMethod apiMethod)
+    {
+        mHostAndPort = hostAndPort;
         mApiMethod = apiMethod;
     }
 
@@ -39,7 +47,7 @@ public class ApiUrl extends BaseUrl {
     }
     @Override
     public String url() {
-        return BaseUrl.combine( SCHEME, HOST_AND_PORT , API, VERSION, mApiMethod.path() );
+        return BaseUrl.combine( SCHEME, mHostAndPort , API, VERSION, mApiMethod.path() );
     }
 
 

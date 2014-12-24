@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import javax.imageio.ImageIO;
+import jp.crudefox.mymon.picturetool.util.HandlerUtil;
 
 /**
  *
@@ -34,26 +35,17 @@ public class SamplerMaker {
         ok,
         ng
     }
-  
-    public interface OnProgressListener {
-        public void onProgress (int current, int max);
-        public void onCurrentTask (String text) ;
+    
+    private final ProgressPublisher mPublisher = new ProgressPublisher();
+    
+    public ProgressPublisher getPublisher () {
+        return mPublisher;
     }
-    
-
-    
-    private OnProgressListener mOnProgressListener;
-    
-    public void setOnProgressListener (OnProgressListener listener) {
-        mOnProgressListener = listener;
-    }
-    
-
     
     public boolean execute (Mode mode, File dir, File outFile) {
         
         if( !dir.isDirectory() ){
-            System.err.println("ディレクトリではありません。");
+            mPublisher.publishError("ディレクトリではありません。");
             return false;
         }
 
@@ -62,7 +54,6 @@ public class SamplerMaker {
         extensions.add("jpeg");
         extensions.add("png");
         //extensions.add("gif");
-        
 
         try {
             final Map<String, Rectangle[]> known_files = new HashMap<>();
@@ -75,7 +66,7 @@ public class SamplerMaker {
                 while ( (line = reader.readLine())!=null ) {
                     String[] arr = line.split(" ", -1);
                     File file = new File(arr[0]);
-                    publishCurrentTask("pre " + file.getAbsolutePath());
+                    mPublisher.publishCurrentTask("pre " + file.getAbsolutePath());
                     if(file.isFile()) {
                         if(arr.length>1) {
                             int pointer = 1;
@@ -118,10 +109,8 @@ public class SamplerMaker {
                 for (int i = 0; i < real_files.length; i++) {
                     File file = real_files[i];
                     String path = file.getPath();
-                    boolean known = known_files.containsKey(path);
-                    
-                    publishProgress(i, real_files.length);
-                    publishCurrentTask("file " + path);
+                    boolean known = known_files.containsKey(path);                    
+                    mPublisher.publishCurrentTask("file " + path);
                     
                     try {
                         if (mode == Mode.ng) {
@@ -159,17 +148,17 @@ public class SamplerMaker {
                         System.err.println("error, skip "+path);
                         ex.printStackTrace(System.err);
                     }
+                    
+                    mPublisher.publishProgress(i, real_files.length);
                 }
                 writer.close();
             }
 
         } catch (FileNotFoundException e) {
-            System.err.println("ファイルを開けません.");
-            e.printStackTrace(System.err);
+            mPublisher.publishError(e);
             return false;
         } catch (IOException e) {
-            System.err.println("ファイルエラー.");
-            e.printStackTrace(System.err);
+            mPublisher.publishError(e);
             return false;
         }
 
@@ -181,32 +170,22 @@ public class SamplerMaker {
     
     
     
-    private void publishProgress (int current, int max) {
-        if (mOnProgressListener!=null) {
-            mOnProgressListener.onProgress(current, max);
-        }
-    }
-        private void publishCurrentTask (String text) {
-        if (mOnProgressListener!=null) {
-            mOnProgressListener.onCurrentTask(text);
-        }
-    }
     
     
 
-    public static void main(String[] args) {
-
-        if(args.length < 3){
-            System.err.println("引数が足りません。(0:mode, 1:dir, 2:outFile)");
-            return;
-        }
-
-        Mode mode = Mode.valueOf(args[0]);
-        File dir = new File( args[1] );
-        File outFile = new File( args[2] );  
-
-        SamplerMaker maker = new SamplerMaker();
-        maker.execute(mode, dir, outFile);
-    }    
+//    public static void main(String[] args) {
+//
+//        if(args.length < 3){
+//            System.err.println("引数が足りません。(0:mode, 1:dir, 2:outFile)");
+//            return;
+//        }
+//
+//        Mode mode = Mode.valueOf(args[0]);
+//        File dir = new File( args[1] );
+//        File outFile = new File( args[2] );  
+//
+//        SamplerMaker maker = new SamplerMaker();
+//        maker.execute(mode, dir, outFile);
+//    }    
     
 }

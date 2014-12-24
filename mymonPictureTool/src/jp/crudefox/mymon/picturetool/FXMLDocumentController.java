@@ -19,6 +19,9 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextField;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Window;
+import jp.crudefox.mymon.picturetool.app.ApiUrl;
+import jp.crudefox.mymon.picturetool.tool.ProgressPublisher;
+import jp.crudefox.mymon.picturetool.util.HandlerUtil;
 
 /**
  *
@@ -27,7 +30,13 @@ import javafx.stage.Window;
 public class FXMLDocumentController implements Initializable {
     
     @FXML
-    private TextField mSaveDirectoryTextField;
+    private TextField mHostAndPortTextField;
+    
+    @FXML
+    private TextField mAccessTokenTextField;    
+    
+    @FXML
+    private TextField mSaveDirectoryTextField;    
     
     @FXML
     private TextField mFoodIdTextField;
@@ -41,11 +50,16 @@ public class FXMLDocumentController implements Initializable {
     @FXML
     private ListView mInfoListView;
     
+
+    
         
         
     @Override
     public void initialize(URL url, ResourceBundle rb) {
         // TODO
+        
+        mHostAndPortTextField.setText(ApiUrl.DEFAULT_HOST_AND_PORT);
+        mAccessTokenTextField.setText("XcrowxWdWhdokCjm");
     }
         
     
@@ -59,6 +73,18 @@ public class FXMLDocumentController implements Initializable {
     
     
     
+    public void publishInfo (String text) {
+        mInfoListView.getItems().add(text);
+    }
+    public void publishProgress (int current, int max) {
+        if (max != 0) {
+            mInfoProgressBar.setProgress(current / (double)max);
+            mInfoLabel.setText( String.format("%d / %d (%d %%)", current, max, current * 100 / max)  );
+        } else {
+            mInfoProgressBar.setProgress(0);
+            mInfoLabel.setText("-");
+        }
+    }
     
     
     @FXML
@@ -81,34 +107,56 @@ public class FXMLDocumentController implements Initializable {
     @FXML
     private void handleDownloadButtonAction(ActionEvent event) {
         
+        String strFoodId = mFoodIdTextField.getText();
+        if (strFoodId.length() == 0) {
+            return;
+        }
+        long food_id = Long.parseLong( strFoodId );
+        
+        File saveDir = new File ( mSaveDirectoryTextField.getText() );
+        if (!saveDir.isDirectory()) {
+            return;
+        }
+        
+        File outEntityFile = new File(saveDir, "ok_food_" + food_id + ".txt");
+        
         Downloader downloader = new Downloader();
-        downloader.executeAllDownload();
+        downloader.setHostAndPort(mHostAndPortTextField.getText());
+        downloader.setAccessToken(mAccessTokenTextField.getText());
+        downloader.getPublisher().setOnProgressListener(new DefaultProgressListener());
+        
+        
+        HandlerUtil.postBackground(() -> {
+            downloader.executeByFoodId(food_id, saveDir, outEntityFile);
+        });
         
     }
    
     
     @FXML
     private void handleMakeSamplesButtonAction(ActionEvent event) {
+        
+        String strFoodId = mFoodIdTextField.getText();
+        if (strFoodId.length() == 0) {
+            return;
+        }
+        long food_id = Long.parseLong( strFoodId );
+        
         File dir = new File ( mSaveDirectoryTextField.getText() );
         
         File okFile = new File("OK.txt");
         File ngFile = new File("NG.txt");
         
         SamplerMaker samplerMaker = new SamplerMaker();
-        samplerMaker.setOnProgressListener(new SamplerMaker.OnProgressListener() {
-
-            @Override
-            public void onProgress(int current, int max) {
-                mInfoProgressBar.setProgress(current / (double)max);
-            }
-
-            @Override
-            public void onCurrentTask(String text) {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-            }
-        });
+        samplerMaker.getPublisher().setOnProgressListener(new DefaultProgressListener());
         
-        samplerMaker.execute(SamplerMaker.Mode.ok, dir, okFile);
+        HandlerUtil.postBackground(()->{
+            samplerMaker.execute(SamplerMaker.Mode.ok, dir, okFile);
+            
+            HandlerUtil.post(()->{
+                publishProgress(0, 0);
+            });
+        });
         
     }   
     
@@ -117,5 +165,22 @@ public class FXMLDocumentController implements Initializable {
         
     }
     
+    
+    private class DefaultProgressListener implements ProgressPublisher.OnProgressListener {
+        @Override
+        public void onProgress(int current, int max) {
+            publishProgress(current, max);
+        }
+
+        @Override
+        public void onCurrentTask(String text) {
+            publishInfo(text);
+        }
+
+        @Override
+        public void onError(String text) {
+            publishInfo(text);
+        }        
+    }
     
 }
