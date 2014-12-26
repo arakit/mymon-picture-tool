@@ -5,187 +5,164 @@
  */
 package jp.crudefox.mymon.picturetool.tool;
 
-import java.awt.Rectangle;
-import java.awt.image.BufferedImage;
+
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileFilter;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import javax.imageio.ImageIO;
-import jp.crudefox.mymon.picturetool.util.HandlerUtil;
+import jp.crudefox.mymon.picturetool.util.InputStreamThread;
 
 /**
  *
  * @author chikara
  */
 public class SamplerMaker {
-
-    public enum Mode{
-        ok,
-        ng
-    }
     
     private final ProgressPublisher mPublisher = new ProgressPublisher();
     
     public ProgressPublisher getPublisher () {
         return mPublisher;
     }
+
     
-    public boolean execute (Mode mode, File dir, File outFile) {
+    
+    public boolean executeCreateVectorFile (File outVecFile, File okFile, File ngFile) {
         
-        if( !dir.isDirectory() ){
-            mPublisher.publishError("ディレクトリではありません。");
-            return false;
+        publish("start createsamples.");
+
+        int okSampleNum = countRow(okFile);
+        //int okTrainingNum = (int)( okNum * 0.75 );
+        
+        // opencv_createsamples -info ${tok} -vec samples.vec -num ${ok_num} -bgcolor 255 -bg ${tng} -w 64 -h 64
+        // opencv_createsamples -info ${tok} -vec samples.vec -num ${ok_num} -bgcolor 255 -bg ${tng} -w 64 -h 64
+        boolean ret = 
+                execf("opencv_createsamples -vec %1$s -info %2$s -bg %3$s -num %4$d -bgcolor 255 -bgthresh 5 -w 24 -h 24",
+                outVecFile.getPath(), okFile.getPath(), ngFile.getPath(), okSampleNum);
+        
+        return ret;                
+    }
+    
+     private void excecute(){
+        publish("mymon step 2 start");
+
+        File okFile = new File("OK.txt");
+        File ngFile = new File("NG.txt");
+        File vecFile = new File("samples.vec");
+        String samples = "samples";
+        File samplesDir = new File(samples);
+        File samplesXml = new File(samples+".xml");
+
+        hr();
+        if ( ngFile.exists() ) skipBecauseFileExists(ngFile, "MymonMakeSamples");
+        else execf("java -jar MymonMakeSamples.jar ng NG/ %s", ngFile.getName());
+
+        hr();
+        if ( okFile.exists() ) skipBecauseFileExists(okFile, "MymonMakeSamples");
+        else execf("java -jar MymonMakeSamples.jar ok OK/ %s", okFile.getName());
+
+        int ok_sample_num = countRow(okFile);
+        int ng_num = countRow(ngFile);
+
+        hr();
+        publish("ok sample count is " + ok_sample_num);
+        publish("ng count is " + ng_num);
+
+        int ok_training_num = (int) (ok_sample_num * 0.75);
+        //int ng_num2 = (int) (ng_num * 1.0);s
+
+        hr();
+        publish("ok training count is " + ok_training_num);
+        //System.out.println("normalized ng count is " + ng_num);
+
+        if (!samplesDir.exists()) {
+            samplesDir.mkdir();
         }
 
-        final Set<String> extensions = new HashSet<>();
-        extensions.add("jpg");
-        extensions.add("jpeg");
-        extensions.add("png");
-        //extensions.add("gif");
+        hr();
+        if (vecFile.exists() && vecFile.isFile()) {
+            skipBecauseFileExists(vecFile, "createsamples");
+        } else {
+            publish("start createsamples.");
+            // opencv_createsamples -info ${tok} -vec samples.vec -num ${ok_num} -bgcolor 255 -bg ${tng} -w 64 -h 64
+            // opencv_createsamples -info ${tok} -vec samples.vec -num ${ok_num} -bgcolor 255 -bg ${tng} -w 64 -h 64
+            execf("opencv_createsamples -vec samples.vec -info %1$s -bg %2$s -num %3$d -bgcolor 255 -bgthresh 5 -w 24 -h 24",
+                    okFile.getName(), ngFile.getName(), ok_sample_num);
+        }
 
+        hr();
+        if ( samplesXml.exists() ) {
+            skipBecauseFileExists(samplesXml, "haartraining");
+        } else {
+            System.out.println("start haartraining.");
+
+            execf("opencv_haartraining -data %1$s -vec %2$s -bg %3$s -npos %4$d -nneg %5$d  -w 24 -h 24 -mode ALL",
+                    samplesDir.getName(), vecFile.getName(), ngFile.getName(), ok_training_num, ng_num);
+            // opencv_traincascade -data samples -vec samples.vec -bg ${tng} -numPos ${ok_num2} -numNeg ${ng_num} -stageType BOOST -featureType LBP -w 64 -h 64 -mode ALL
+            // opencv_traincascade -data samples -vec samples.vec -bg ${tng} -numPos ${ok_num2} -numNeg ${ng_num} -numStages 20 -mode ALL -w 24 -h 24 -precalcValBufSize 5000 -precalcIdxBufSize 1000 -featureType LBP
+        }
+
+        hr();
+        publish("finish mymon step2." );
+    }
+     
+     private void publish (String text) {
+         mPublisher.publishCurrentTask(text);
+     }
+
+    private final void skipBecauseFileExists (File file, String what) {
+        publish("* " + file.getName() + " is exists, skip "+what+".");
+    }
+
+    private final void hr () {
+        publish( "-------------------------" );
+    }
+
+    private boolean execf (String s, Object... args) {
         try {
-            final Map<String, Rectangle[]> known_files = new HashMap<>();
-            final Set<String> del_files = new HashSet<>();
-
-            //
-            if(outFile.exists()){
-                BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(outFile)));
-                String line;
-                while ( (line = reader.readLine())!=null ) {
-                    String[] arr = line.split(" ", -1);
-                    File file = new File(arr[0]);
-                    mPublisher.publishCurrentTask("pre " + file.getAbsolutePath());
-                    if(file.isFile()) {
-                        if(arr.length>1) {
-                            int pointer = 1;
-                            int targetNum = Integer.valueOf( arr[pointer++] );
-                            java.util.List<Rectangle> rcList = new ArrayList<>();
-                            for(int i=0;i<targetNum;i++) {
-                                Rectangle rc = new Rectangle(
-                                        Integer.valueOf( arr[pointer++] ),
-                                        Integer.valueOf( arr[pointer++] ),
-                                        Integer.valueOf( arr[pointer++] ),
-                                        Integer.valueOf( arr[pointer++] )
-                                );
-                                rcList.add(rc);
-                            }
-                            known_files.put(file.getPath(), rcList.toArray(new Rectangle[0]));
-                        }
-                    }else{
-                        del_files.add( file.getPath() );
-                    }
-                }
-                reader.close();
-            }
-
-            File[] real_files = dir.listFiles(new FileFilter() {
-                @Override
-                public boolean accept(File pathname) {
-                    if (!pathname.isFile()) return false;
-                    String name = pathname.getName();
-                    int idxPeriod = name.lastIndexOf('.');
-                    if (idxPeriod == -1) return false;
-                    String extension = name.substring(idxPeriod + 1, name.length());
-                    return extensions.contains(extension);
-                }
-            });
+            Runtime rt = Runtime.getRuntime();
+            String command = String.format(s, (Object[]) args);
+            mPublisher.publishCurrentTask(command);
+            Process process = rt.exec(command);           
             
-
-            //
-            {
-                PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(outFile)));
-                for (int i = 0; i < real_files.length; i++) {
-                    File file = real_files[i];
-                    String path = file.getPath();
-                    boolean known = known_files.containsKey(path);                    
-                    mPublisher.publishCurrentTask("file " + path);
-                    
-                    try {
-                        if (mode == Mode.ng) {
-                            BufferedImage image = ImageIO.read(file);
-                            if (image.getWidth() < 200 || image.getHeight() < 200) {
-                                continue;
-                            }
-
-                            writer.print(path);
-                        } else if (mode == Mode.ok) {
-
-                            BufferedImage image = ImageIO.read(file);
-                            if (image.getWidth() < 200 || image.getHeight() < 200) {
-                                continue;
-                            }
-
-                            int paddingX = (int) (image.getWidth() * 0.10f);
-                            int paddingY = (int) (image.getHeight() * 0.10f);
-
-                            writer.append(path);
-                            writer.append(' ');
-                            writer.printf("%d %d %d %d %d",
-                                    1,
-                                    paddingX,
-                                    paddingY,
-                                    image.getWidth() - paddingX * 2,
-                                    image.getHeight() - paddingY * 2
-                            );
-
-                        }
-
-                        writer.println("");
-
-                    } catch (Exception ex) {
-                        System.err.println("error, skip "+path);
-                        ex.printStackTrace(System.err);
-                    }
-                    
-                    mPublisher.publishProgress(i, real_files.length);
-                }
-                writer.close();
-            }
-
-        } catch (FileNotFoundException e) {
-            mPublisher.publishError(e);
-            return false;
-        } catch (IOException e) {
-            mPublisher.publishError(e);
+            InputStreamThread it = new InputStreamThread(process.getInputStream(), (String line) -> {
+                mPublisher.publishCurrentTask(line);
+            });
+            InputStreamThread et = new InputStreamThread(process.getErrorStream(), (String line) -> {
+                mPublisher.publishError(line);                
+            });
+            it.start();
+            et.start();
+            process.waitFor();
+            it.join();
+            et.join();
+            return true;
+        } catch (Exception ex) {
+            mPublisher.publishError(ex);
             return false;
         }
-
-        System.out.println("DONE.");       
-        
-        return true;
     }
     
     
+    private static final int countRow (File file) {
+        try {
+            BufferedReader in = new BufferedReader(new FileReader(file));
+            String line;
+            int n = 0;
+            while ((line = in.readLine()) != null) {
+                n++;
+            }
+            in.close();
+            return n;
+        } catch (Exception ex) {
+            return 0;
+        }
+    }
     
     
-    
-    
+  
 
-//    public static void main(String[] args) {
-//
-//        if(args.length < 3){
-//            System.err.println("引数が足りません。(0:mode, 1:dir, 2:outFile)");
-//            return;
-//        }
-//
-//        Mode mode = Mode.valueOf(args[0]);
-//        File dir = new File( args[1] );
-//        File outFile = new File( args[2] );  
-//
-//        SamplerMaker maker = new SamplerMaker();
-//        maker.execute(mode, dir, outFile);
-//    }    
+    
     
 }

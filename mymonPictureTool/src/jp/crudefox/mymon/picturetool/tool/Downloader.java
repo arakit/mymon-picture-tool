@@ -6,40 +6,41 @@
 package jp.crudefox.mymon.picturetool.tool;
 
 import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpRequest;
-import com.google.api.client.http.HttpRequestFactory;
-import com.google.api.client.http.HttpRequestInitializer;
-import com.google.api.client.http.HttpResponse;
-import com.google.api.client.http.apache.ApacheHttpTransport;
-import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.api.client.util.Joiner;
-import com.google.api.client.util.Key;
-import com.google.api.client.util.Lists;
-import com.google.api.client.xml.XmlNamespaceDictionary;
+import com.google.common.io.Files;
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileFilter;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.imageio.ImageIO;
 import jp.crudefox.mymon.picturetool.api.Caker;
 import jp.crudefox.mymon.picturetool.api.input.PicturesListInput;
-import jp.crudefox.mymon.picturetool.api.output.OutputRoot;
 import jp.crudefox.mymon.picturetool.api.output.PicturesListOutput;
 import jp.crudefox.mymon.picturetool.api.output.common.Picture;
 import jp.crudefox.mymon.picturetool.api.output.common.PictureTag;
 import jp.crudefox.mymon.picturetool.app.ApiMethod;
 import jp.crudefox.mymon.picturetool.app.ApiUrl;
-import jp.crudefox.mymon.picturetool.util.HandlerUtil;
 import jp.crudefox.mymon.picturetool.util.Log;
 
 /**
@@ -123,7 +124,7 @@ public class Downloader {
             mPublisher.publishCurrentTask("" + picture.toString());
 
             try {
-                File outPictureFile = new File(saveDir, ""+picture.id);
+                File outPictureFile = pictureFile(saveDir, picture);
                 if ( outPictureFile.exists() ) {
                     // do nothing.
                 } else {
@@ -146,9 +147,19 @@ public class Downloader {
 //            pw.print(str);
 //            pw.close();
             
+            Path relativeParent = Paths.get( outEntityFile.getParentFile().getAbsolutePath() );
             for (int i=0; i<pictures.size(); i++) {
                 Picture picture = pictures.get(i);
-                File outPictureFile = new File(saveDir, ""+picture.id);
+                File outPictureFile = pictureFile(saveDir, picture);
+                Path relativePictureFilePath = relativeParent.relativize(Paths.get(outPictureFile.getAbsolutePath()));
+                
+                try {
+                    BufferedImage image = ImageIO.read(outPictureFile);
+                } catch (Exception ex) {
+                    mPublisher.publishError(ex);
+                    continue;
+                }                
+                
                 List<PictureTag> targetTags = new ArrayList<>();
                 
                 for (int j=0; j<picture.picture_tags.length; j++) {
@@ -158,7 +169,7 @@ public class Downloader {
                     }
                 }
                 
-                pw.append(outPictureFile.getPath());
+                pw.append(relativePictureFilePath.toString());
                 pw.append(" ");
                 pw.append(String.valueOf(targetTags.size()));
                 
@@ -187,6 +198,9 @@ public class Downloader {
         return true;
     }
     
+    public static File pictureFile (File dir, Picture picture) {
+        return new File(dir, ""+picture.id);
+    }
     
     private boolean saveFileFromStream (File outFile, InputStream is) {
 
@@ -218,5 +232,116 @@ public class Downloader {
 //            @Key public String name;
 //        }
 //    }
+    
+    
+    
+    
+    
+        
+    public boolean executeCreateNgFileList (File dir, File outFile) {
+        
+        if( !dir.isDirectory() ){
+            mPublisher.publishError("ディレクトリではありません。");
+            return false;
+        }
+
+        final Set<String> extensions = new HashSet<>();
+        extensions.add("jpg");
+        extensions.add("jpeg");
+        extensions.add("png");
+        //extensions.add("gif");
+
+        try {
+//            final Map<String, Rectangle[]> known_files = new HashMap<>();
+//            final Set<String> del_files = new HashSet<>();
+//
+//            //
+//            if(outFile.exists()){
+//                BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(outFile)));
+//                String line;
+//                while ( (line = reader.readLine())!=null ) {
+//                    String[] arr = line.split(" ", -1);
+//                    File file = new File(arr[0]);
+//                    mPublisher.publishCurrentTask("pre " + file.getAbsolutePath());
+//                    if(file.isFile()) {
+//                        if(arr.length>1) {
+//                            int pointer = 1;
+//                            int targetNum = Integer.valueOf( arr[pointer++] );
+//                            java.util.List<Rectangle> rcList = new ArrayList<>();
+//                            for(int i=0;i<targetNum;i++) {
+//                                Rectangle rc = new Rectangle(
+//                                        Integer.valueOf( arr[pointer++] ),
+//                                        Integer.valueOf( arr[pointer++] ),
+//                                        Integer.valueOf( arr[pointer++] ),
+//                                        Integer.valueOf( arr[pointer++] )
+//                                );
+//                                rcList.add(rc);
+//                            }
+//                            known_files.put(file.getPath(), rcList.toArray(new Rectangle[0]));
+//                        }
+//                    }else{
+//                        del_files.add( file.getPath() );
+//                    }
+//                }
+//                reader.close();
+//            }
+
+            File[] real_files = dir.listFiles(new FileFilter() {
+                @Override
+                public boolean accept(File pathname) {
+                    if (!pathname.isFile()) return false;
+                    String name = pathname.getName();
+                    int idxPeriod = name.lastIndexOf('.');
+                    if (idxPeriod == -1) return false;
+                    String extension = name.substring(idxPeriod + 1, name.length());
+                    return extensions.contains(extension);
+                }
+            });
+            
+
+            //
+            try ( PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(outFile))) ) {
+                
+                Path relativeParent = Paths.get( outFile.getParentFile().getAbsolutePath() );
+                            
+                for (int i = 0; i < real_files.length; i++) {
+                    File file = real_files[i];
+                    //String path = file.getPath();
+                    //boolean known = known_files.containsKey(path);   
+                    Path relativePictureFilePath = relativeParent.relativize(Paths.get(file.getAbsolutePath()));
+                    String relativePath = relativePictureFilePath.toString();
+                    
+                    mPublisher.publishCurrentTask("file " + relativePath);
+                    
+                    try {
+                        BufferedImage image = ImageIO.read(file);
+                        if (image.getWidth() < 200 || image.getHeight() < 200) {
+                            continue;
+                        }
+
+                        writer.print(relativePath);
+                        writer.println();
+
+                    } catch (Exception ex) {
+                        mPublisher.publishError("error, skip "+relativePath);
+                        ex.printStackTrace(System.err);
+                    }
+                    
+                    mPublisher.publishProgress(i, real_files.length);
+                }
+                writer.close();
+            }
+
+        } catch (IOException e) {
+            mPublisher.publishError(e);
+            return false;
+        }
+
+        mPublisher.publishCurrentTask("DONE.");
+        
+        return true;
+    }
+    
+    
     
 }

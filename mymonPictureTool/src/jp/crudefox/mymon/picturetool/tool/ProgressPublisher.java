@@ -37,6 +37,7 @@ public class ProgressPublisher {
     }
     public  void publishCurrentTask (String text) {
         if (text == null) return;
+        System.out.println(text);
         OnProgressListener listener = mOnProgressListener;
         if (listener!=null) {
             HandlerUtil.post(() -> {
