@@ -5,18 +5,47 @@
  */
 package jp.crudefox.mymon.picturetool.api;
 
+import com.google.api.client.http.ByteArrayContent;
+import com.google.api.client.http.FileContent;
 import com.google.api.client.http.GenericUrl;
+import com.google.api.client.http.HttpContent;
+import com.google.api.client.http.HttpHeaders;
+import com.google.api.client.http.HttpMediaType;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpRequestFactory;
 import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.InputStreamContent;
+import com.google.api.client.http.MultipartContent;
+import com.google.api.client.http.UrlEncodedContent;
+import com.google.api.client.http.UrlEncodedParser;
 import com.google.api.client.http.apache.ApacheHttpTransport;
+import com.google.api.client.util.ArrayValueMap;
+import com.google.api.client.util.Charsets;
+import com.google.api.client.util.Data;
+import com.google.api.client.util.FieldInfo;
+import com.google.api.client.util.Types;
+import com.google.api.client.util.escape.CharEscapers;
 import com.google.api.client.xml.XmlNamespaceDictionary;
+import com.google.common.net.MediaType;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.internal.Pair;
+import com.ning.http.client.multipart.StringPart;
+import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.lang.reflect.Field;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import jp.crudefox.mymon.picturetool.util.Log;
 import jp.crudefox.mymon.picturetool.util.ReflectionUtils;
 
 /**
@@ -25,63 +54,182 @@ import jp.crudefox.mymon.picturetool.util.ReflectionUtils;
  */
 public class Caker {
     
+    public static final String TAG = "Caker";
 
-    private HttpRequestFactory mHttpRequestFactory;
-    
-    public Caker () {
+    public static final Charset DEFAULT_CHARSET = Charsets.UTF_8;
+    public static final String URL_ENCODE_POST_MEDIA_TYPE
+            = new HttpMediaType(UrlEncodedParser.CONTENT_TYPE).setCharsetParameter(DEFAULT_CHARSET).build();
+
+
+    private final HttpRequestFactory mHttpRequestFactory;
+
+    public Caker() {
         final XmlNamespaceDictionary namespace = new XmlNamespaceDictionary();
-        namespace.set("", "");        
+        namespace.set("", "");
 
         ApacheHttpTransport transport = new ApacheHttpTransport();
-         HttpRequestFactory factory = transport
+        HttpRequestFactory factory = transport
                 .createRequestFactory((HttpRequest request) -> {
-                    request.setConnectTimeout(0);
+                    request.setConnectTimeout(1000 * 10);
                     request.setReadTimeout(0);
                     //request.setParser(new JacksonFactory().createJsonObjectParser());
-        });
-         
-         mHttpRequestFactory = factory;        
+                });
+
+        mHttpRequestFactory = factory;
     }
-    
-    
-    public HttpResponse execute (GenericUrl url) throws IOException {
+
+    public HttpResponse executeGet(GenericUrl url) throws IOException {
         HttpRequest request = mHttpRequestFactory.buildGetRequest(url);
         HttpResponse httpResponse = request.execute();
         return httpResponse;
     }
+
+    public HttpResponse executePost(GenericUrl url, HttpContent content) throws IOException {
+        HttpRequest request = mHttpRequestFactory.buildPostRequest(url, content);
+        HttpResponse httpResponse = request.execute();
+        return httpResponse;
+    }
+
+    public HttpResponse executeUrlEncodedPost(GenericUrl url, List<Pair<String, Object>> list) throws IOException {
+
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        writeUrlEncoded(os, DEFAULT_CHARSET, list);
+
+        InputStreamContent content = new InputStreamContent(
+                URL_ENCODE_POST_MEDIA_TYPE,
+                new ByteArrayInputStream(os.toByteArray()));
+
+        return executePost(url, content);
+    }
     
-    public InputStream executeResponseInputStream (GenericUrl url) throws IOException {
-        HttpResponse httpResponse = execute(url);
+    public JsonObject executeUrlEncodedPostResponseJson(GenericUrl url, List<Pair<String, Object>> list) throws IOException {
+        String strResponse = executeUrlEncodedPost(url, list).parseAsString();
+        JsonParser jsonParser = new JsonParser();
+        JsonObject jsonObject = jsonParser.parse(strResponse).getAsJsonObject();
+        return jsonObject;
+    }
+
+    public HttpResponse executeMultipartPost(GenericUrl url, List<Pair<String, Object>> list) throws IOException {
+        // Add parameters
+        MultipartContent mp = new MultipartContent().setMediaType(
+                new HttpMediaType("multipart/form-data")
+                .setCharsetParameter(DEFAULT_CHARSET)
+                .setParameter("boundary", "__END_OF_PART__"));
+
+        list.stream().map((e) -> {
+            String name = e.first;
+            Object value = e.second;
+            MultipartContent.Part part;
+            if (value instanceof File) {
+                File fileValue = (File) value;
+                FileContent fileContent = new FileContent(
+                        null, fileValue);
+                part = new MultipartContent.Part(fileContent);
+                part.setHeaders(new HttpHeaders().set(
+                        "Content-Disposition",
+                        String.format("form-data; name=\"%s\"; filename=\"%s\"",
+                                name,
+                                fileValue.getName())));
+            } else if (value != null) {
+                part = new MultipartContent.Part(
+                        new ByteArrayContent(null, value.toString().getBytes()));
+                part.setHeaders(new HttpHeaders().set(
+                        "Content-Disposition",
+                        String.format("form-data; name=\"%s\"", name)));
+            } else {
+                part = null;
+            }
+            return part;
+        }).filter((part) -> (part != null)).forEach((part) -> {
+            mp.addPart(part);
+        });
+        
+//        ByteArrayOutputStream os = new ByteArrayOutputStream();
+//        mp.writeTo(os);
+//        Log.d(TAG, "request(POST) -> " + mp.getParts().size());
+        
+        return executePost(url, mp);
+    }
+
+    public InputStream executeResponseInputStream(GenericUrl url) throws IOException {
+        HttpResponse httpResponse = executeGet(url);
         return httpResponse.getContent();
     }
 
-    public String executeResponseString (GenericUrl url) throws IOException {
-        HttpResponse httpResponse = execute(url);
+    public String executeResponseString(GenericUrl url) throws IOException {
+        HttpResponse httpResponse = executeGet(url);
         String strResponse = httpResponse.parseAsString();
         return strResponse;
     }
-    
-    public JsonObject executeResponseJson (GenericUrl url) throws IOException {
+
+    public JsonObject executeResponseJson(GenericUrl url) throws IOException {
         String strResponse = executeResponseString(url);
         JsonParser jsonParser = new JsonParser();
         JsonObject jsonObject = jsonParser.parse(strResponse).getAsJsonObject();
         return jsonObject;
     }
-    
 
-    
-    public static void setupUrlFromBean (GenericUrl url, Object object) {
-        Map<Field, Object> fv = ReflectionUtils.getDeclaredFieldValues(object, null, null);
-        for ( Map.Entry<Field, Object> e : fv.entrySet() ) {
-            String key = e.getKey().getName();
-            Object value = e.getValue();
-            if (value!=null) {
-                url.put(key, value.toString());
-            } else {
-                url.put(key, null);
+    public JsonObject responseJson(HttpResponse httpResponse) throws IOException {
+        String strResponse = httpResponse.parseAsString();
+        JsonParser jsonParser = new JsonParser();
+        JsonObject jsonObject = jsonParser.parse(strResponse).getAsJsonObject();
+        return jsonObject;
+    }
+
+    private static void writeUrlEncoded(OutputStream out, Charset charset, List<Pair<String, Object>> params) throws IOException {
+
+        Writer writer = new BufferedWriter(new OutputStreamWriter(out, charset));
+        boolean first = true;
+        for (Pair<String, Object> nameValuePair : params) {
+            String name = nameValuePair.first;
+            Object value = nameValuePair.second;
+            if (value != null) {
+                appendParam(writer, name, value, first);
+                first = false;
             }
         }
+        writer.flush();
     }
-    
-    
+
+    private static void appendParam(Writer writer, String name, Object value, boolean first)
+            throws IOException {
+        // append value
+        if (!first) {
+            writer.write("&");
+        }
+        writer.write(CharEscapers.escapeUri(name));
+        if (value != null) {
+            String stringValue = CharEscapers.escapeUri(value.toString());
+            if (stringValue.length() != 0) {
+                writer.write("=");
+                writer.write(stringValue);
+            }
+        }
+
+    }
+
+    public static List<Pair<String, Object>> makeNameValueListFromBean(Object object) {
+        ArrayList<Pair<String, Object>> list = new ArrayList<>();
+        Map<Field, Object> fv = ReflectionUtils.getDeclaredFieldValues(object, null, null);
+        fv.entrySet().stream().forEach((e) -> {
+            String key = e.getKey().getName();
+            Object value = e.getValue();
+            if (value != null) {
+                list.add(new Pair(key, value));
+            } else {
+                list.add(new Pair(key, null));
+            }
+        });
+        return list;
+    }
+
+    public static void setupUrlFromBean(GenericUrl url, Object object) {
+        List<Pair<String, Object>> list = makeNameValueListFromBean(object);
+        for (Pair<String, Object> e : list) {
+            String key = e.first;
+            Object value = e.second;
+            url.put(key, value);
+        }
+    }
+
 }

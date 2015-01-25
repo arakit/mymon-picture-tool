@@ -17,11 +17,12 @@ import jp.crudefox.mymon.picturetool.util.BaseUrl;
 public class ApiUrl extends BaseUrl {
 
     public static final String SCHEME = "http://";
-    public static final String DEFAULT_HOST_AND_PORT = "192.168.1.11:9000";
+    //public static final String DEFAULT_HOST_AND_PORT = "192.168.1.11:9000";
     //public static final String DEFAULT_HOST_AND_PORT = "192.168.11.20:9000";
     //public static final String DEFAULT_HOST_AND_PORT = "192.168.11.3:9000";
     //public static final String DEFAULT_HOST_AND_PORT = "192.168.11.34:9000";
     //public static final String DEFAULT_HOST_AND_PORT = "www9108up.sakura.ne.jp:9000";
+    public static final String DEFAULT_HOST_AND_PORT = "local.test.net:9000";
 
     public static final String API = "api";
     public static final String VERSION = "v0";

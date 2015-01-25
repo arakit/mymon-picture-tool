@@ -16,7 +16,7 @@ public class Log {
     }
     public static final void d(String tag, String message, Throwable throwable) {
         //Logger.debug(tag+": "+message+"");
-        System.out.print(tag+": "+message+"");
+        System.out.println(tag+": "+message+"");
         if (throwable!=null) throwable.printStackTrace( System.out );
     }
 
@@ -25,7 +25,7 @@ public class Log {
     }
     public static final void i(String tag, String message, Throwable throwable) {
         //Logger.info(tag+": "+message+"");
-        System.out.print(tag+": "+message+"");
+        System.out.println(tag+": "+message+"");
         if (throwable!=null) throwable.printStackTrace( System.out );
     }
 
@@ -34,7 +34,7 @@ public class Log {
     }
     public static final void w(String tag, String message, Throwable throwable) {
         //Logger.error(tag+": "+message+"");
-        System.err.print(tag+": "+message+"");
+        System.err.println(tag+": "+message+"");
         if (throwable!=null) throwable.printStackTrace( System.err );
     }
 
@@ -43,7 +43,7 @@ public class Log {
     }
     public static final void e(String tag, String message, Throwable throwable) {
         //Logger.error(tag+": "+message+"");
-        System.err.print(tag+": "+message+"");
+        System.err.println(tag+": "+message+"");
         if (throwable!=null) throwable.printStackTrace( System.err );
     }
     

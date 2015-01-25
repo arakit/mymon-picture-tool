@@ -25,6 +25,7 @@ public enum ApiMethod implements MethodFactor {
     users_list(ApiMethod.GET, "/users/list"),
 
     foods_search(ApiMethod.GET, "/foods/search"),
+    foods_list(ApiMethod.GET, "/foods/list"),    
     foods_food(ApiMethod.GET, "/foods/food"),
     foods_put(ApiMethod.POST, "/foods/put"),
 

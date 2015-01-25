@@ -8,5 +8,8 @@ public class PicturesUpdateInput extends BaseAuthorizedInput {
 
     public Long picture_id;
     public String title;
+    
+    // TODO 
+    public String system_tag;
 
 }

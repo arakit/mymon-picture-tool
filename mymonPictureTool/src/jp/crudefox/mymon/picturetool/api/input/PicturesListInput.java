@@ -16,6 +16,9 @@ public class PicturesListInput extends BaseAuthorizedInput {
     public Long user_id;
     // search by food.
     public Long food_id;
+    
+    // search by system tag.
+    public String system_tag;
 
 
 }
