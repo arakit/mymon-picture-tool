@@ -10,12 +10,21 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.PrintWriter;
 import jp.crudefox.mymon.picturetool.util.InputStreamThread;
+import jp.crudefox.mymon.picturetool.util.Log;
 
 /**
  *
  * @author chikara
  */
 public class Leaener {
+    
+    private static final String TAG = "Leaener";
+    
+    
+    public interface OnProcessListener {
+        public void onStart (Process process);
+        public void onStop (Process process);
+    }
     
     
     private final ProgressPublisher mPublisher = new ProgressPublisher();
@@ -24,22 +33,22 @@ public class Leaener {
         return mPublisher;
     }
         
-    public void excecute(File vecFile, File okFile, File ngFile, File outLeaningDir){
+    public boolean excecute(File vecFile, File okFile, File ngFile, File outLeaningDir, OnProcessListener processListener){
         
         if (!okFile.isFile() || !ngFile.isFile() || !vecFile.isFile() ) {
-            mPublisher.publishError("file is not found.");
-            return;
+            publishError("file is not found.");
+            return false;
         }
         
         if (!outLeaningDir.exists()) {
             if (!outLeaningDir.mkdirs()) {
-                mPublisher.publishError("dir can not create");                
-                return;
+                publishError("dir can not create");                
+                return false;
             }
         }
         if (outLeaningDir.isFile()) {
-            mPublisher.publishError("dir is not directory.");            
-            return;
+            publishError("dir is not directory.");            
+            return false;
         }
         
         File outLeaningLogFile = new File(
@@ -111,7 +120,7 @@ public class Leaener {
         
         publish("start haartraining.");
 
-        execf(  outLeaningLogFile,
+        boolean successTraning = execf( outLeaningLogFile, processListener,
                 "opencv_haartraining -data %1$s -vec %2$s -bg %3$s -npos %4$d -nneg %5$d  -w 24 -h 24 -mode ALL",
                 outLeaningDir.getPath(), vecFile.getPath(), ngFile.getPath(), ok_training_num, ng_num);
         // opencv_traincascade -data samples -vec samples.vec -bg ${tng} -numPos ${ok_num2} -numNeg ${ng_num} -stageType BOOST -featureType LBP -w 64 -h 64 -mode ALL
@@ -120,24 +129,33 @@ public class Leaener {
         hr();
         publish("finish mymon step2." );
         
+        return successTraning;
     }
 
-    private final void skipBecauseFileExists (File file, String what) {
-        publish("* " + file.getName() + " is exists, skip "+what+".");
-    }
+//    private final void skipBecauseFileExists (File file, String what) {
+//        publish("* " + file.getName() + " is exists, skip "+what+".");
+//    }
 
-    private final void hr () {
+    private void hr () {
         publish("-------------------------" );
     }
 
-    private final boolean execf (File logFile, String s, Object... args) {
+    private boolean execf (File logFile, OnProcessListener processListener, String s, Object... args) {
+        
+        Process listenerStartProccess = null;
         try (PrintWriter pw = new PrintWriter(logFile)) {
             
             Runtime rt = Runtime.getRuntime();
             String command = String.format(s, (Object[]) args);
             mPublisher.publishCurrentTask(command);
-            Process process = rt.exec(command);
-
+            final Process process = rt.exec(command);
+            Thread shutdownHock = new Thread(){
+                @Override
+                public void run() {
+                    process.destroy();
+                }
+            };
+            rt.addShutdownHook(shutdownHock);
             InputStreamThread it = new InputStreamThread(process.getInputStream(), (String line) -> {
                 pw.println(line);
                 pw.flush();
@@ -148,20 +166,29 @@ public class Leaener {
                 pw.flush();
                 mPublisher.publishError(line);
             });
+            if (processListener!=null) {
+                listenerStartProccess = process;
+                processListener.onStart(process);
+            }
             it.start();
             et.start();
             process.waitFor();
             it.join();
             et.join();
             pw.close();
+            rt.removeShutdownHook(shutdownHock);
             return true;
         } catch (Exception ex) {
-            ex.printStackTrace();
+            Log.e(TAG, "err exec command", ex);
             return false;
+        } finally {
+            if (processListener!=null && listenerStartProccess!=null) {
+                processListener.onStop(listenerStartProccess);
+            }            
         }
     }
 
-    private static final int countRow (File file) {
+    private static int countRow (File file) {
         try ( BufferedReader in = new BufferedReader(new FileReader(file)) ) {
             String line;
             int n = 0;
@@ -177,7 +204,19 @@ public class Leaener {
  
     
     
-    private void publish (String text) {
-         mPublisher.publishCurrentTask(text);
+    private void publish(String text) {
+        mPublisher.publishCurrentTask(text);
     }
+
+    private void publishProgress(int now, int max) {
+        mPublisher.publishProgress(now, max);
+    }
+
+    private void publishError(String text) {
+        mPublisher.publishError(text);
+    }
+
+    private void publishError(Throwable throwable) {
+        mPublisher.publishError(throwable);
+    }    
 }

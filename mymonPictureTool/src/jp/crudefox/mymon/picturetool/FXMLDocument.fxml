@@ -31,17 +31,48 @@
                                        <children>
                                           <HBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
                                              <children>
-                                                <Label minWidth="100.0" text="food id" />
-                                                <TextField fx:id="mAllStartFoodIdTextField" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                                                <Label minWidth="100.0" text="name (*)" />
+                                                <TextField fx:id="mAllStartNameTextField" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
                                              </children>
                                              <VBox.margin>
-                                                <Insets top="20.0" />
+                                                <Insets />
                                              </VBox.margin>
                                           </HBox>
                                           <HBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
                                              <children>
-                                                <Label minWidth="100.0" text="-" />
-                                                <TextField maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                                                <Label minWidth="100.0" text="food_id">
+                                                   <HBox.margin>
+                                                      <Insets />
+                                                   </HBox.margin>
+                                                </Label>
+                                                <ComboBox fx:id="mAllStartFoodIdTextField" editable="true" maxWidth="1.7976931348623157E308" promptText="food_id" HBox.hgrow="ALWAYS" />
+                                                <Button mnemonicParsing="false" onAction="#handleReloadFoodList" text="reload" />
+                                             </children>
+                                          </HBox>
+                                          <HBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
+                                             <children>
+                                                <Label minWidth="100.0" text="def ng file dir" />
+                                                <TextField fx:id="mAllStartDefaultNgDirectoryTextField" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                                                <Button fx:id="mAllStartDefaultNgDirectoryChooseButton" minWidth="60.0" mnemonicParsing="false" text="choose" />
+                                             </children>
+                                          </HBox>
+                                          <TextArea fx:id="mAllStartNgFoodIdListTextArea" prefHeight="200.0" prefWidth="200.0" promptText="ng food id list">
+                                             <VBox.margin>
+                                                <Insets top="5.0" />
+                                             </VBox.margin>
+                                          </TextArea>
+                                          <HBox alignment="CENTER" layoutX="30.0" layoutY="82.0" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
+                                             <children>
+                                                <TextField disable="true" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                                                <Button disable="true" minWidth="60.0" mnemonicParsing="false" text="choose" />
+                                                <Button fx:id="mAllStartNgFoodIdListAddAllButton" layoutX="298.0" layoutY="10.0" minWidth="60.0" mnemonicParsing="false" text="add all" />
+                                             </children>
+                                          </HBox>
+                                          <HBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
+                                             <children>
+                                                <Label minWidth="100.0" text="save pict dir (*)" />
+                                                <TextField fx:id="mAllStartPictureSaveDirectoryTextField" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                                                <Button fx:id="mAllStartPictureSaveDirectoryChooseButton" minWidth="60.0" mnemonicParsing="false" text="choose" />
                                              </children>
                                              <VBox.margin>
                                                 <Insets top="20.0" />
@@ -52,7 +83,26 @@
                                                 <Insets top="20.0" />
                                              </VBox.margin>
                                           </Button>
-                                          <Button maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" mnemonicParsing="false" onAction="#handleStartButtonAction" text="Start" />
+                                          <HBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
+                                             <children>
+                                                <Label minWidth="100.0" text="output dir (**)" />
+                                                <TextField fx:id="mAllStartLeaningOutputDirectoryTextField" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                                                <Button fx:id="mAllStartLeaningOutputDirectoryChooseButton" minWidth="60.0" mnemonicParsing="false" text="choose" />
+                                             </children>
+                                             <VBox.margin>
+                                                <Insets top="20.0" />
+                                             </VBox.margin>
+                                          </HBox>
+                                          <Button fx:id="mAllStartLeaningStartButton" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" mnemonicParsing="false" onAction="#handleStartButtonAction" text="Start" />
+                                          <HBox alignment="CENTER" layoutX="30.0" layoutY="328.0" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
+                                             <children>
+                                                <Label minWidth="100.0" text="kill process" />
+                                                <Button fx:id="mAllStartLeaningStopButton" maxWidth="1.7976931348623157E308" minWidth="60.0" mnemonicParsing="false" text="Stop" HBox.hgrow="SOMETIMES" />
+                                             </children>
+                                             <VBox.margin>
+                                                <Insets top="5.0" />
+                                             </VBox.margin>
+                                          </HBox>
                                        </children>
                                        <padding>
                                           <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
@@ -77,9 +127,13 @@
                                        <children>
                                           <HBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
                                              <children>
-                                                <Label minWidth="100.0" text="food_id" />
-                                                <TextField fx:id="mFoodIdTextField" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
-                                                <Button minWidth="60.0" mnemonicParsing="false" />
+                                                <Label minWidth="100.0" text="food_id">
+                                                   <HBox.margin>
+                                                      <Insets />
+                                                   </HBox.margin>
+                                                </Label>
+                                                <ComboBox fx:id="mMakeOkFoodIdTextField" editable="true" maxWidth="1.7976931348623157E308" promptText="food_id" HBox.hgrow="ALWAYS" />
+                                                <Button mnemonicParsing="false" onAction="#handleReloadFoodList" text="reload" />
                                              </children>
                                           </HBox>
                                           <HBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
@@ -89,7 +143,7 @@
                                                 <Button fx:id="mSaveDirectoryChooseButton" minWidth="60.0" mnemonicParsing="false" text="choose" />
                                              </children>
                                              <VBox.margin>
-                                                <Insets top="20.0" />
+                                                <Insets />
                                              </VBox.margin>
                                           </HBox>
                                           <Button maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" mnemonicParsing="false" onAction="#handleDownloadButtonAction" text="Download &amp; OK list file">
@@ -130,7 +184,7 @@
                                                 <Button fx:id="mSaveMakeNgListFileChooseButton" minWidth="60.0" mnemonicParsing="false" text="choose" />
                                              </children>
                                              <VBox.margin>
-                                                <Insets top="20.0" />
+                                                <Insets />
                                              </VBox.margin>
                                           </HBox>
                                           <Button maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" mnemonicParsing="false" onAction="#handleMakeNgSamplesButtonAction" text="Make NG list file">
@@ -159,9 +213,6 @@
                                                 <TextField fx:id="mOkListFileTextField" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
                                                 <Button fx:id="mOkListFileChooseButton" minWidth="60.0" mnemonicParsing="false" text="choose" />
                                              </children>
-                                             <padding>
-                                                <Insets top="20.0" />
-                                             </padding>
                                           </HBox>
                                           <HBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
                                              <children>
@@ -355,25 +406,12 @@
                                        <children>
                                           <HBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
                                              <children>
-                                                <Label minWidth="100.0" text="url" />
-                                                <TextField fx:id="mWebViewUrlTextField" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
-                                             </children>
-                                             <VBox.margin>
-                                                <Insets left="10.0" right="10.0" top="5.0" />
-                                             </VBox.margin>
-                                          </HBox>
-                                          <HBox alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308">
-                                             <children>
                                                 <Label minWidth="100.0" text="food_id">
                                                    <HBox.margin>
                                                       <Insets />
                                                    </HBox.margin>
                                                 </Label>
-                                                <ComboBox fx:id="mWebViewFoodIdField" editable="true" maxWidth="1.7976931348623157E308" promptText="food_id" HBox.hgrow="ALWAYS">
-                                                   <tooltip>
-                                                      <Tooltip text="Empty Tooltip" />
-                                                   </tooltip>
-                                                </ComboBox>
+                                                <ComboBox fx:id="mWebViewFoodIdField" editable="true" maxWidth="1.7976931348623157E308" promptText="food_id" HBox.hgrow="ALWAYS" />
                                                 <Button mnemonicParsing="false" onAction="#handleReloadFoodList" text="reload" />
                                              </children>
                                              <VBox.margin>

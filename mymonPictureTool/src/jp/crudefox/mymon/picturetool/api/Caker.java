@@ -47,19 +47,34 @@ import java.util.List;
 import java.util.Map;
 import jp.crudefox.mymon.picturetool.util.Log;
 import jp.crudefox.mymon.picturetool.util.ReflectionUtils;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
+import java.util.Map;
+
+import org.apache.http.Header;
+import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.content.ContentBody;
+import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.StringBody;
+
+import com.google.api.client.http.HttpContent;
+import com.google.api.client.util.Data;
+import com.google.api.client.util.FieldInfo;
 
 /**
  *
  * @author chikara
  */
 public class Caker {
-    
+
     public static final String TAG = "Caker";
 
     public static final Charset DEFAULT_CHARSET = Charsets.UTF_8;
     public static final String URL_ENCODE_POST_MEDIA_TYPE
             = new HttpMediaType(UrlEncodedParser.CONTENT_TYPE).setCharsetParameter(DEFAULT_CHARSET).build();
-
 
     private final HttpRequestFactory mHttpRequestFactory;
 
@@ -101,7 +116,7 @@ public class Caker {
 
         return executePost(url, content);
     }
-    
+
     public JsonObject executeUrlEncodedPostResponseJson(GenericUrl url, List<Pair<String, Object>> list) throws IOException {
         String strResponse = executeUrlEncodedPost(url, list).parseAsString();
         JsonParser jsonParser = new JsonParser();
@@ -110,45 +125,51 @@ public class Caker {
     }
 
     public HttpResponse executeMultipartPost(GenericUrl url, List<Pair<String, Object>> list) throws IOException {
-        // Add parameters
-        MultipartContent mp = new MultipartContent().setMediaType(
-                new HttpMediaType("multipart/form-data")
-                .setCharsetParameter(DEFAULT_CHARSET)
-                .setParameter("boundary", "__END_OF_PART__"));
-
-        list.stream().map((e) -> {
-            String name = e.first;
-            Object value = e.second;
-            MultipartContent.Part part;
-            if (value instanceof File) {
-                File fileValue = (File) value;
-                FileContent fileContent = new FileContent(
-                        null, fileValue);
-                part = new MultipartContent.Part(fileContent);
-                part.setHeaders(new HttpHeaders().set(
-                        "Content-Disposition",
-                        String.format("form-data; name=\"%s\"; filename=\"%s\"",
-                                name,
-                                fileValue.getName())));
-            } else if (value != null) {
-                part = new MultipartContent.Part(
-                        new ByteArrayContent(null, value.toString().getBytes()));
-                part.setHeaders(new HttpHeaders().set(
-                        "Content-Disposition",
-                        String.format("form-data; name=\"%s\"", name)));
-            } else {
-                part = null;
-            }
-            return part;
-        }).filter((part) -> (part != null)).forEach((part) -> {
-            mp.addPart(part);
-        });
         
+//        MultipartFormDataContent mp = new MultipartFormDataContent();
+//        MultipartContent mp = new MultipartContent().setMediaType(
+//                new HttpMediaType("multipart/form-data")
+//                .setCharsetParameter(DEFAULT_CHARSET)
+//                .setParameter("boundary", "__END_OF_PART__"));
+//        ArrayList<Pair<String, Object>> mpList = new ArrayList<>();
+//        list.stream().map((e) -> {
+//            Pair<
+//            return ;
+//        } );
+
+//        list.stream().map((e) -> {
+//            String name = e.first;
+//            Object value = e.second;
+//            MultipartContent.Part part;
+//            if (value instanceof File) {
+//                File fileValue = (File) value;
+//                FileContent fileContent = new FileContent(
+//                        null, fileValue);
+//                part = new MultipartContent.Part(fileContent);
+//                part.setHeaders(new HttpHeaders().set(
+//                        "Content-Disposition",
+//                        String.format("form-data; name=\"%s\"; filename=\"%s\"",
+//                                name,
+//                                fileValue.getName()))
+//                );
+//            } else if (value != null) {
+//                part = new MultipartContent.Part(
+//                        new ByteArrayContent(null, value.toString().getBytes()));
+//                part.setHeaders(new HttpHeaders().set(
+//                        "Content-Disposition",
+//                        String.format("form-data; name=\"%s\"", name)));
+//            } else {
+//                part = null;
+//            }
+//            return part;
+//        }).filter((part) -> (part != null)).forEach((part) -> {
+//            mpList.add(part);
+//        });
+
 //        ByteArrayOutputStream os = new ByteArrayOutputStream();
 //        mp.writeTo(os);
 //        Log.d(TAG, "request(POST) -> " + mp.getParts().size());
-        
-        return executePost(url, mp);
+        return executePost(url, new MultipartFormDataContent(list));
     }
 
     public InputStream executeResponseInputStream(GenericUrl url) throws IOException {
@@ -230,6 +251,73 @@ public class Caker {
             Object value = e.second;
             url.put(key, value);
         }
+    }
+
+    public static class MultipartFormDataContent implements HttpContent {
+
+        private final MultipartEntity impl;
+        private final Charset encodingForStrings;
+
+        public MultipartFormDataContent(List<Pair<String, Object>> data, Charset encodingForStrings) {
+            this.impl = new MultipartEntity();
+            this.encodingForStrings = encodingForStrings;
+            setData(data);
+        }
+
+        public MultipartFormDataContent(List<Pair<String, Object>> data) {
+            this(data, Charsets.UTF_8);
+        }
+
+
+        private void setData(List<Pair<String, Object>> data) {
+            for (Pair<String, Object> pair : data) {
+                if (pair != null) {
+                    String name = pair.first;
+                   Object value = pair.second;
+                    if (value == null) {
+                        
+                    } else if (value instanceof File) {
+                        impl.addPart(name, new FileBody((File) value));
+                    } else if (value instanceof ContentBody) {
+                        impl.addPart(name, (ContentBody) value);
+                    } else {
+                        String stringValue = value.toString();
+                        try {
+                            impl.addPart(name, new StringBody(stringValue, encodingForStrings));
+                        } catch (UnsupportedEncodingException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }
+        }
+
+        @Override
+        public String getType() {
+            return impl.getContentType().getValue();
+        }
+
+        @Override
+        public void writeTo(OutputStream out) throws IOException {
+            impl.writeTo(out);
+        }
+
+        @Override
+        public long getLength() throws IOException {
+            return impl.getContentLength();
+        }
+
+        //@Override
+        public String getEncoding() {
+            Header encoding = impl.getContentEncoding();
+            return encoding == null ? null : encoding.getValue();
+        }
+
+        @Override
+        public boolean retrySupported() {
+            return impl.isRepeatable();
+        }
+
     }
 
 }

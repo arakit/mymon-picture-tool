@@ -9,7 +9,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import jp.crudefox.mymon.picturetool.api.Caker;
 import jp.crudefox.mymon.picturetool.api.input.FoodListInput;
 import jp.crudefox.mymon.picturetool.api.output.FoodsListOutput;
@@ -77,6 +81,13 @@ public class ApiExecutor {
     public Food getCacheFood (long foodId) {
         return mFoodsCache.get(foodId);
     }
+    public Food[] getCacheFoods () {
+        ArrayList<Food> list = new ArrayList<>();
+        for (Map.Entry<Long, Food> e : mFoodsCache.entrySet()) {
+            list.add(e.getValue());
+        }
+        return list.toArray(new Food[0]);
+    }    
     
     
     private boolean saveFileFromStream (File outFile, InputStream is) {

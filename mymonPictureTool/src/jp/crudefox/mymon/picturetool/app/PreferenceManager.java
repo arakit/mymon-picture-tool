@@ -27,6 +27,7 @@ public class PreferenceManager {
     
     public static final String KEY_ACCESS_TOKEN = "access_token";
     public static final String KEY_HOST_AND_POST = "host_and_port";
+    public static final String KEY_LATEST_URL = "latest_url";    
     
 
     // access token
@@ -44,5 +45,13 @@ public class PreferenceManager {
     public static String getHostAndPort(){
         return p().get(KEY_HOST_AND_POST, ApiUrl.DEFAULT_HOST_AND_PORT);
     }
+    
+    // latest
+    public static void putLatestUrl(String value){
+        p().put(KEY_LATEST_URL, value);
+    }
+    public static String getLatestUrl(){
+        return p().get(KEY_LATEST_URL, "");
+    }    
     
 }

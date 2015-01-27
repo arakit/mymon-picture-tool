@@ -10,39 +10,41 @@ import jp.crudefox.mymon.picturetool.tool.Downloader;
 import jp.crudefox.mymon.picturetool.tool.SamplerMaker;
 import java.io.File;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.ResourceBundle;
-import java.util.prefs.Preferences;
+import java.util.stream.Collectors;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import javafx.collections.ObservableList;
 import javafx.concurrent.Worker;
 import javafx.event.ActionEvent;
-import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.ChoiceBox;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressBar;
-import javafx.scene.control.SplitMenuButton;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.input.InputMethodEvent;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
 import javafx.util.Callback;
 import javafx.util.StringConverter;
 import jp.crudefox.mymon.picturetool.api.output.common.Food;
-import jp.crudefox.mymon.picturetool.app.ApiUrl;
 import jp.crudefox.mymon.picturetool.app.PreferenceManager;
 import jp.crudefox.mymon.picturetool.tool.ApiExecutor;
 import jp.crudefox.mymon.picturetool.tool.Leaener;
@@ -62,14 +64,17 @@ public class FXMLDocumentController implements Initializable {
 
     public static String TAG = "FXMLDocumentController";
 
+    // setttings 
     @FXML
     private TextField mHostAndPortTextField;
     @FXML
     private TextField mAccessTokenTextField;
 
+    // ok
     @FXML
-    private TextField mFoodIdTextField;
-
+    private ComboBox mMakeOkFoodIdTextField;
+    
+    //
     @FXML
     private TextField mSaveDirectoryTextField;
     @FXML
@@ -125,8 +130,30 @@ public class FXMLDocumentController implements Initializable {
 
     // all
     @FXML
-    private TextField mAllStartFoodIdTextField;
-
+    private TextField mAllStartNameTextField;
+    @FXML
+    private ComboBox mAllStartFoodIdTextField;
+    @FXML
+    private TextField mAllStartPictureSaveDirectoryTextField;
+    @FXML
+    private Button mAllStartPictureSaveDirectoryChooseButton;
+    @FXML
+    private TextArea mAllStartNgFoodIdListTextArea;
+    @FXML
+    private Button mAllStartNgFoodIdListAddAllButton;    
+    @FXML
+    private TextField mAllStartDefaultNgDirectoryTextField;
+    @FXML
+    private Button mAllStartDefaultNgDirectoryChooseButton;
+    @FXML
+    private TextField mAllStartLeaningOutputDirectoryTextField;
+    @FXML
+    private Button mAllStartLeaningOutputDirectoryChooseButton;
+    @FXML
+    private Button mAllStartLeaningStopButton;    
+    @FXML
+    private Button mAllStartLeaningStartButton;
+    
     // Lire
     @FXML
     private TextField mLireIndexerDirectoryTextField;
@@ -138,8 +165,6 @@ public class FXMLDocumentController implements Initializable {
     private Button mLireSearchFileChooseButton;
 
     // 
-    @FXML
-    private TextField mWebViewUrlTextField;
     @FXML
     private ComboBox mWebViewFoodIdField;
     @FXML
@@ -154,7 +179,7 @@ public class FXMLDocumentController implements Initializable {
     private WebView mWebView;
     
 
-    private ApiExecutor mApiExecutor = new ApiExecutor();
+    private final ApiExecutor mApiExecutor = new ApiExecutor();
 
     
 
@@ -164,6 +189,12 @@ public class FXMLDocumentController implements Initializable {
 
         mSaveDirectoryChooseButton.setOnAction(
                 new FileChooseButtonEventHandler(FileChooseButtonEventHandler.Mode.Directory, mSaveDirectoryTextField));
+        mAllStartPictureSaveDirectoryChooseButton.setOnAction(
+                new FileChooseButtonEventHandler(FileChooseButtonEventHandler.Mode.Directory, mAllStartPictureSaveDirectoryTextField));
+        mAllStartDefaultNgDirectoryChooseButton.setOnAction(
+                new FileChooseButtonEventHandler(FileChooseButtonEventHandler.Mode.Directory, mAllStartDefaultNgDirectoryTextField));
+        mAllStartLeaningOutputDirectoryChooseButton.setOnAction(
+                new FileChooseButtonEventHandler(FileChooseButtonEventHandler.Mode.Directory, mAllStartLeaningOutputDirectoryTextField));        
         mVecFileChooseButton.setOnAction(
                 new FileChooseButtonEventHandler(FileChooseButtonEventHandler.Mode.OpenFile, mVecFileTextField));
         mOkListFileChooseButton.setOnAction(
@@ -203,7 +234,9 @@ public class FXMLDocumentController implements Initializable {
             public void changed(ObservableValue<? extends Worker.State> ov, Worker.State oldState, Worker.State newState) {
                 if (newState == javafx.concurrent.Worker.State.SUCCEEDED) {                   
                     progressBar.setProgress(0.0);
-                    mWebViewUrlBoxField.setText(engine.getLocation());
+                    String url = engine.getLocation();
+                    mWebViewUrlBoxField.setText(url);
+                    PreferenceManager.putLatestUrl(url);
                 } else if (newState == javafx.concurrent.Worker.State.FAILED) {
                     progressBar.setProgress(0.0);
                 } else if (newState == javafx.concurrent.Worker.State.CANCELLED) {
@@ -213,20 +246,9 @@ public class FXMLDocumentController implements Initializable {
         });
 
 
-        mWebViewFoodIdField.setConverter(new StringConverter<Food>() {
-
-            @Override
-            public String toString(Food object) {
-                if (object == null || object.food_id==null) return "";
-                return String.format("%d %s", object.food_id, object.food_name);
-            }
-
-            @Override
-            public Food fromString(String string) {
-                if (string.length() == 0) return null;
-                return mApiExecutor.getCacheFood(Long.valueOf(string.split(" ", 2)[0]));
-            }
-        });
+        mWebViewFoodIdField.setConverter(new FoodStringConverter());
+        mMakeOkFoodIdTextField.setConverter(new FoodStringConverter());
+        mAllStartFoodIdTextField.setConverter(new FoodStringConverter());
         
         
         mAccessTokenTextField.setText(PreferenceManager.getAccessToken());        
@@ -241,7 +263,59 @@ public class FXMLDocumentController implements Initializable {
             publishInfo("save");            
         });
         
+        mWebViewUrlBoxField.setText(PreferenceManager.getLatestUrl());
         
+        mAllStartNgFoodIdListAddAllButton.setOnAction((ActionEvent event) -> {
+            Long okFoodId = pickFoodId(mAllStartFoodIdTextField.getEditor().getText());
+            Food[] foods = mApiExecutor.getCacheFoods();
+            TextArea ta = mAllStartNgFoodIdListTextArea;
+            if (foods == null) {
+                return ;
+            }
+            StringBuilder sb = new StringBuilder();
+            for (Food food : foods) {
+                if (okFoodId!=null && okFoodId.equals(food.food_id) ) {
+                    continue;
+                }
+                sb.append(formatFoodId(food));
+                sb.append('\n');
+            }
+            ta.setText(sb.toString());
+        });
+     
+        mAllStartNameTextField.setText("haarcascade_test_v0");
+        
+        {
+            ContextMenu cm = new ContextMenu();
+            MenuItem itemClearAll = new CheckMenuItem("clear");
+            itemClearAll.setOnAction((ActionEvent e) -> {
+                mInfoListView.getItems().clear();
+            });
+            
+            cm.getItems().add(itemClearAll);
+            mInfoListView.setContextMenu(cm);
+        }
+
+        mAllStartLeaningStopButton.setOnAction((ActionEvent event) -> {
+            synchronized (mRunningLeaningProcess) {
+                mRunningLeaningProcess.stream().forEach((Process process) -> {
+                    process.destroy();
+                });
+            }
+        });
+        
+         mAllStartNameTextField.textProperty().addListener((ObservableValue<? extends String> observable, String oldValue, String newValue) -> {
+            updateCheckCanStartLeaning();
+        });
+         mAllStartLeaningOutputDirectoryTextField.textProperty().addListener((ObservableValue<? extends String> observable, String oldValue, String newValue) -> {
+            updateCheckCanStartLeaning();
+        });
+         mAllStartPictureSaveDirectoryTextField.textProperty().addListener((ObservableValue<? extends String> observable, String oldValue, String newValue) -> {
+            updateCheckCanStartLeaning();
+        });         
+        
+        updateAllStartLeaningStopButton();
+        updateCheckCanStartLeaning();
     }
     
     
@@ -253,6 +327,7 @@ public class FXMLDocumentController implements Initializable {
         //mInfoTextArea.appendText(text + '\n');
         //mInfoTextArea.setText(mInfoText.toString());
     }
+    
 
     public void publishProgress(int current, int max) {
         if (max != 0) {
@@ -263,6 +338,17 @@ public class FXMLDocumentController implements Initializable {
             mInfoLabel.setText("-");
         }
     }
+    
+    public void postPublishInfo(String text) {
+        HandlerUtil.post(()->{
+            publishInfo(text);
+        });
+    }
+    public void postPublishProgress(int current, int max) {
+        HandlerUtil.post(()->{
+            publishProgress(current, max);
+        });
+    }    
 
     @FXML
     private void handleButtonAction(ActionEvent event) {
@@ -273,22 +359,12 @@ public class FXMLDocumentController implements Initializable {
 
     @FXML
     private void handleSetupButtonAction(ActionEvent event) {
-
-        String strFoodId = mAllStartFoodIdTextField.getText();
-        if (strFoodId.length() == 0) {
-            return;
-        }
-        long food_id = Long.parseLong(strFoodId);
-
-        mFoodIdTextField.setText("" + food_id);
-
-//        File outEntityFile = new File(saveDir, "ok_food_" + food_id + ".txt");
-//        mOkListFileTextField.setText( outEntityFile.getAbsolutePath() );
-    }
+        setupLeaning();
+    }    
 
     @FXML
     private void handleStartButtonAction(ActionEvent event) {
-
+        startLeaning();
     }
 
     @FXML
@@ -335,18 +411,14 @@ public class FXMLDocumentController implements Initializable {
     @FXML
     private void handleDownloadButtonAction(ActionEvent event) {
 
-        String strFoodId = mFoodIdTextField.getText();
-        if (strFoodId.length() == 0) {
-            return;
-        }
-        long food_id = Long.parseLong(strFoodId);
+        long foodId = pickFoodId( mMakeOkFoodIdTextField.getEditor().getText() );
 
         File saveDir = new File(mSaveDirectoryTextField.getText());
         if (!saveDir.isDirectory()) {
             return;
         }
 
-        File outEntityFile = new File(saveDir, "ok_food_" + food_id + ".txt");
+        File outEntityFile = new File(saveDir, "ok_food_" + foodId + ".txt");
 
         Downloader downloader = new Downloader();
         downloader.setHostAndPort(mHostAndPortTextField.getText());
@@ -354,7 +426,7 @@ public class FXMLDocumentController implements Initializable {
         downloader.getPublisher().setOnProgressListener(new DefaultProgressListener());
 
         HandlerUtil.postBackground(() -> {
-            downloader.executeByFoodId(food_id, saveDir, outEntityFile);
+            downloader.executeByFoodId(foodId, saveDir, outEntityFile, true);
 
             HandlerUtil.post(() -> {
                 publishProgress(0, 0);
@@ -390,7 +462,7 @@ public class FXMLDocumentController implements Initializable {
         maker.getPublisher().setOnProgressListener(new DefaultProgressListener());
 
         HandlerUtil.postBackground(() -> {
-            maker.executeCreateNgFileList(fromDir, ngFile);
+            maker.executeCreateNgFileList(fromDir, ngFile, false);
 
             HandlerUtil.post(() -> {
                 publishProgress(0, 0);
@@ -441,11 +513,11 @@ public class FXMLDocumentController implements Initializable {
         File vecFile = new File(mVecFileTextField.getText());
         File outTraningDir = new File(mSaveTrainingDirTextField.getText());
 
-        Leaener maker = new Leaener();
-        maker.getPublisher().setOnProgressListener(new DefaultProgressListener());
+        Leaener leaener = new Leaener();
+        leaener.getPublisher().setOnProgressListener(new DefaultProgressListener());
 
         HandlerUtil.postBackground(() -> {
-            maker.excecute(vecFile, okFile, ngFile, outTraningDir);
+            leaener.excecute(vecFile, okFile, ngFile, outTraningDir, null);
 
             HandlerUtil.post(() -> {
 
@@ -458,15 +530,15 @@ public class FXMLDocumentController implements Initializable {
     
     @FXML
     private void handleGoWebViewAction(ActionEvent event) {
+        
         final String url = (mWebViewUrlBoxField.getText());        
         final WebView webView = mWebView;
-        final WebEngine engine = webView.getEngine();
-        
+        final WebEngine engine = webView.getEngine();        
         final RRCroller croller = new RRCroller();
         croller.setHostAndPort(mHostAndPortTextField.getText());
         croller.setAccessToken(mAccessTokenTextField.getText());
         croller.getPublisher().setOnProgressListener(new DefaultProgressListener());
-        
+        PreferenceManager.putLatestUrl(url);
         
         engine.getLoadWorker().stateProperty().addListener(new ChangeListener<Worker.State>() {
 
@@ -577,11 +649,9 @@ public class FXMLDocumentController implements Initializable {
                     if (callback!=null) callback.call(false);
                     return;
                 }
-                ObservableList items = mWebViewFoodIdField.getItems();
-                items.clear();
-                for (Food food : foods) {
-                    items.add(food);
-                }
+                mWebViewFoodIdField.getItems().setAll((Object[])foods);
+                mAllStartFoodIdTextField.getItems().setAll((Object[])foods);
+
                 if (callback!=null) callback.call(true);                
             });
         });       
@@ -627,5 +697,227 @@ public class FXMLDocumentController implements Initializable {
         }
 
     }
+    
+    
+    private class FoodStringConverter extends StringConverter<Food>{
+        @Override
+        public String toString(Food object) {
+            if (object == null || object.food_id==null) return "";
+            return String.format("%d %s", object.food_id, object.food_name);
+        }
+
+        @Override
+        public Food fromString(String string) {
+            if (string.length() == 0) return null;
+            Long id = pickFoodId(string);
+            if (id == null) return null;
+            return mApiExecutor.getCacheFood(id);
+        }
+       
+    }
+
+    private static String formatFoodId (Food obj) {
+        try {
+            return String.format("%d %s", obj.food_id, obj.food_name);
+        } catch (Exception ex) {
+            return null;
+        }        
+    }    
+    private static Long pickFoodId (String str) {
+        try {
+            return Long.valueOf(str.split(" ", 2)[0]);
+        } catch (Exception ex) {
+            return null;
+        }        
+    }
+    
+    
+    
+    
+
+    
+
+    /**
+     * leaning ready. 
+     */
+    private void setupLeaning () {
+        
+        String title = mAllStartNameTextField.getText();
+        long foodId = pickFoodId(mAllStartFoodIdTextField.getEditor().getText());
+        File savePictureDir = new File(mAllStartPictureSaveDirectoryTextField.getText());
+        List<Long> ngIds = Arrays.asList(mAllStartNgFoodIdListTextArea.getText().split("\n")).stream().map((String str) -> {
+            return pickFoodId(str);
+        }).filter((id)-> (id!=null)).collect(Collectors.toList());
+        File defNgDir = new File(mAllStartDefaultNgDirectoryTextField.getText());
+        File defNgListFile = new File(savePictureDir, "ng_def_" + title + ".txt");
+        File okListFile = new File(savePictureDir, "ok_" + title + ".txt");
+        File ngAllListFile = new File(savePictureDir, "ng_" + title + ".txt");
+        File vecFile = new File(savePictureDir, "" + title + ".vec");
+
+        Downloader downloader = new Downloader();
+        downloader.setHostAndPort(mHostAndPortTextField.getText());
+        downloader.setAccessToken(mAccessTokenTextField.getText());
+        downloader.getPublisher().setOnProgressListener(new DefaultProgressListener());
+        
+        SamplerMaker maker = new SamplerMaker();
+        maker.getPublisher().setOnProgressListener(new DefaultProgressListener());        
+        
+        Leaener leaener = new Leaener();
+        leaener.getPublisher().setOnProgressListener(new DefaultProgressListener());
+
+
+
+        HandlerUtil.postBackground(() -> {
+
+            if ( !downloader.executeByFoodId(foodId, savePictureDir, okListFile, true) ){
+                postPublishInfo("failed ok.");
+                return;
+            }
+            postPublishInfo("success ok.");
+            
+            List<File> mergeNgFiles = new ArrayList<>();
+                        
+            if (!downloader.executeCreateNgFileList(defNgDir, defNgListFile, true) ) {
+                postPublishInfo("failed def ng.");
+                return;
+            }
+            mergeNgFiles.add(defNgListFile);
+            postPublishInfo("success def ng.");
+            
+
+            for (long ngId : ngIds) {
+                File ngEachListFile = new File(savePictureDir, "ng_"+ ngId +"_" + title + ".txt");  
+                if ( !downloader.executeByFoodId(ngId, savePictureDir, ngEachListFile, false) ){
+                    postPublishInfo("failed each ng" + ngId+".");
+                    return;
+                }
+                postPublishInfo("success each ng.");
+                mergeNgFiles.add(ngEachListFile);
+            }
+            postPublishInfo("success all ng.");
+            
+            if (!Downloader.mergeFile(mergeNgFiles, ngAllListFile)) {
+                postPublishInfo("failed ng merge.");
+                return;
+            }
+            postPublishInfo("success merge file.");
+            
+            // ok and ng file list ready completed.
+            
+            // create vec file.
+            if ( !maker.executeCreateVectorFile(vecFile, okListFile, ngAllListFile) ) {
+                postPublishInfo("failed create vec file.");               
+                return;
+            }
+            postPublishInfo("success create vec file.");
+            
+            // 
+            // leaener.excecute(vecFile, okFile, ngFile, outTraningDir);            
+
+            HandlerUtil.post(() -> {
+                    publishInfo("completed setup."); 
+                    publishProgress(0, 0);
+                    updateCheckCanStartLeaning();
+                }
+            );
+        });
+        
+    }
+    
+    private final HashSet<Process> mRunningLeaningProcess = new HashSet<>();
+    
+    private void updateAllStartLeaningStopButton () {
+        int count;
+        synchronized (mRunningLeaningProcess) {
+            count = mRunningLeaningProcess.size();
+        }
+        Button button = mAllStartLeaningStopButton;
+        if (count > 0) {
+            button.setText("Stop ("+count+")");
+            button.setDisable(false);
+        } else {
+            button.setText("Stop");
+            button.setDisable(true);
+        }
+    }
+    
+    private void updateCheckCanStartLeaning () {
+        boolean check;
+        try {
+            LeaningInfo info = new LeaningInfo();
+            check = info.check();
+        } catch (Exception ex) {
+            check = false;
+        }
+        mAllStartLeaningStartButton.setDisable(!check);
+    }    
+    
+    private class LeaningInfo {
+        
+        final String title = mAllStartNameTextField.getText();
+        final File savePictureDir = new File(mAllStartPictureSaveDirectoryTextField.getText());
+        final File vecFile = new File(savePictureDir, "" + title + ".vec");
+        final File okListFile = new File(savePictureDir, "ok_" + title + ".txt");
+        final File ngAllListFile = new File(savePictureDir, "ng_" + title + ".txt");
+        
+        final File outputDir = new File(mAllStartLeaningOutputDirectoryTextField.getText());
+        final File traningDir = new File(outputDir, "" + title + "");        
+        
+        public boolean check () {
+            if (title.length() == 0) return false;
+            if (!savePictureDir.isDirectory()) return false;
+            if (!vecFile.isFile()) return false;
+            if (!okListFile.isFile()) return false;
+            if (!ngAllListFile.isFile()) return false;
+            if (!outputDir.isDirectory()) return false;
+            return true;
+        };
+    };
+    
+    private void startLeaning () {
+        
+        final LeaningInfo info = new LeaningInfo();
+        if (!info.check()) return;
+        
+        Leaener leaener = new Leaener();
+        leaener.getPublisher().setOnProgressListener(new DefaultProgressListener());        
+        
+        HandlerUtil.postBackground(()->{
+            // leaning
+            boolean success = leaener.excecute(
+                    info.vecFile, info.okListFile, info.ngAllListFile, info.traningDir,
+                    new Leaener.OnProcessListener() {
+                        @Override
+                        public void onStart(Process process) {
+                            synchronized (mRunningLeaningProcess) {
+                                mRunningLeaningProcess.add(process);
+                            }
+                            HandlerUtil.post(() -> { updateAllStartLeaningStopButton(); });
+                        }
+                        @Override
+                        public void onStop(Process process) {
+                            synchronized (mRunningLeaningProcess) {
+                                mRunningLeaningProcess.remove(process);
+                            }
+                            HandlerUtil.post(() -> { updateAllStartLeaningStopButton(); });                            
+                        }
+                    }
+            );           
+            if (!success){
+                postPublishInfo("failed leaning.");
+                return;
+            }
+            postPublishInfo("success leaning.");
+            
+            
+            HandlerUtil.post(() -> {
+                publishInfo("completed leaning."); 
+                publishProgress(0, 0);}
+            );
+        });
+        
+    }
+
+    
 
 }

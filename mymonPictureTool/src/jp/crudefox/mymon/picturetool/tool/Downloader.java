@@ -11,6 +11,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
@@ -18,6 +19,7 @@ import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -76,7 +78,7 @@ public class Downloader {
         mCaker = new Caker();
     }
     
-    public boolean executeByFoodId (long food_id, File saveDir, File outEntityFile) {
+    public boolean executeByFoodId (long food_id, File saveDir, File outEntityFile, boolean isOutRect) {
                         
          
          final List<Picture> pictures = new ArrayList<>();
@@ -97,7 +99,7 @@ public class Downloader {
 
                 Caker.setupUrlFromBean(url, in);
 
-                mPublisher.publishCurrentTask("request = " +url.build());
+                publish("request = " +url.build());
 
                 JsonObject jsonObject = mCaker.executeResponseJson(url);
                 PicturesListOutput pictureListResponse = gson.fromJson(jsonObject.get("result"), PicturesListOutput.class);
@@ -108,20 +110,20 @@ public class Downloader {
                 since_id = pictureListResponse.next_id;
                 counter += pictureListResponse.num;
 
-                mPublisher.publishCurrentTask("response = " +pictureListResponse.toString());
-                mPublisher.publishProgress(counter, pictureListResponse.all_num);
+                publish("response = " +pictureListResponse.toString());
+                publishProgress(counter, pictureListResponse.all_num);
                 
             } while (since_id != null);
 
         } catch (IOException e) {
-            mPublisher.publishError(e);
+            publishError(e);
             return false;
         }
         
         
         for (int i=0; i<pictures.size(); i++) {
             Picture picture = pictures.get(i);
-            mPublisher.publishCurrentTask("" + picture.toString());
+            publish("" + picture.toString());
 
             try {
                 File outPictureFile = pictureFile(saveDir, picture);
@@ -138,7 +140,7 @@ public class Downloader {
             mPublisher.publishProgress(i+1, pictures.size());
         }
         
-        mPublisher.publishCurrentTask("complete picture download.");
+        publish("complete picture download.");
              
         
         try ( PrintWriter pw = new PrintWriter(new BufferedOutputStream(new FileOutputStream(outEntityFile)))) {
@@ -153,10 +155,14 @@ public class Downloader {
                 File outPictureFile = pictureFile(saveDir, picture);
                 Path relativePictureFilePath = relativeParent.relativize(Paths.get(outPictureFile.getAbsolutePath()));
                 
+                publish("" + outPictureFile);
+                publishProgress(i, pictures.size());
+                
                 try {
                     BufferedImage image = ImageIO.read(outPictureFile);
+                    image.getHeight();
                 } catch (Exception ex) {
-                    mPublisher.publishError(ex);
+                    publishError(ex);
                     continue;
                 }                
                 
@@ -170,21 +176,27 @@ public class Downloader {
                 }
                 
                 pw.append(relativePictureFilePath.toString());
-                pw.append(" ");
-                pw.append(String.valueOf(targetTags.size()));
                 
-                for (int j=0; j<targetTags.size(); j++) {
-                    
-                    PictureTag tag = targetTags.get(j);
-                    pw.printf(" %d %d %d %d",
-                        tag.range.left, // x
-                        tag.range.top, // y
-                        tag.range.width() , // width
-                        tag.range.height()  // height
-                    );
+                if (isOutRect) {
+                    pw.append(" ");
+                    pw.append(String.valueOf(targetTags.size()));
+
+                    for (int j=0; j<targetTags.size(); j++) {
+
+                        PictureTag tag = targetTags.get(j);
+                        pw.printf(" %d %d %d %d",
+                            tag.range.left, // x
+                            tag.range.top, // y
+                            tag.range.width() , // width
+                            tag.range.height()  // height
+                        );
+                    }
                 }
                 pw.println();
             }
+            
+            publish("completed check imag and write list file.");
+            publishProgress(pictures.size(), pictures.size());            
             
             pw.close();
             
@@ -193,7 +205,7 @@ public class Downloader {
             return false;
         }        
         
-        mPublisher.publishCurrentTask("complete save json file.");
+        mPublisher.publishCurrentTask("complete save list file.");
         
         return true;
     }
@@ -238,7 +250,7 @@ public class Downloader {
     
     
         
-    public boolean executeCreateNgFileList (File dir, File outFile) {
+    public boolean executeCreateNgFileList (File dir, File outFile, boolean ignoreFileExtention) {
         
         if( !dir.isDirectory() ){
             mPublisher.publishError("ディレクトリではありません。");
@@ -291,6 +303,7 @@ public class Downloader {
                 public boolean accept(File pathname) {
                     if (!pathname.isFile()) return false;
                     String name = pathname.getName();
+                    if (ignoreFileExtention) return true;
                     int idxPeriod = name.lastIndexOf('.');
                     if (idxPeriod == -1) return false;
                     String extension = name.substring(idxPeriod + 1, name.length());
@@ -311,7 +324,8 @@ public class Downloader {
                     Path relativePictureFilePath = relativeParent.relativize(Paths.get(file.getAbsolutePath()));
                     String relativePath = relativePictureFilePath.toString();
                     
-                    mPublisher.publishCurrentTask("file " + relativePath);
+                    publish("file " + relativePath);
+                    publishProgress(i, real_files.length);
                     
                     try {
                         BufferedImage image = ImageIO.read(file);
@@ -323,13 +337,15 @@ public class Downloader {
                         writer.println();
 
                     } catch (Exception ex) {
-                        mPublisher.publishError("error, skip "+relativePath);
-                        ex.printStackTrace(System.err);
+                        publishError("error, skip "+relativePath);
+                        //ex.printStackTrace(System.err);
                     }
-                    
-                    mPublisher.publishProgress(i, real_files.length);
+
                 }
                 writer.close();
+                
+                publish("completed image check and write list file.");
+                publishProgress(real_files.length, real_files.length);                
             }
 
         } catch (IOException e) {
@@ -343,5 +359,43 @@ public class Downloader {
     }
     
     
+    
+    
+    public static boolean mergeFile (List<File> files, File outFile) {
+        try ( PrintWriter writer = new PrintWriter( new BufferedOutputStream(new FileOutputStream(outFile)) )) {
+            for (File file : files) {
+                try( BufferedReader reader = new BufferedReader( new FileReader(file) ) ){
+                    String line;
+                    while ((line=reader.readLine())!=null) {
+                        if (line.length() == 0) {continue;}
+                        writer.println(line);
+                    }
+                    reader.close();
+                } 
+            }
+            writer.close();
+            return true;
+        } catch (Exception ex) {
+            Log.e(TAG, "error merge file.", ex);
+            return false;
+        }
+    }
+    
+    
+    private void publish(String text) {
+        mPublisher.publishCurrentTask(text);
+    }
+
+    private void publishProgress(int now, int max) {
+        mPublisher.publishProgress(now, max);
+    }
+
+    private void publishError(String text) {
+        mPublisher.publishError(text);
+    }
+
+    private void publishError(Throwable throwable) {
+        mPublisher.publishError(throwable);
+    }    
     
 }
