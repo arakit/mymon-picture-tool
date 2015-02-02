@@ -63,6 +63,13 @@ import org.apache.http.entity.mime.content.StringBody;
 import com.google.api.client.http.HttpContent;
 import com.google.api.client.util.Data;
 import com.google.api.client.util.FieldInfo;
+import com.google.api.client.util.SslUtils;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import javax.net.ssl.SSLSocketFactory;
 
 /**
  *
@@ -83,6 +90,7 @@ public class Caker {
         namespace.set("", "");
 
         ApacheHttpTransport transport = new ApacheHttpTransport();
+        
         HttpRequestFactory factory = transport
                 .createRequestFactory((HttpRequest request) -> {
                     request.setConnectTimeout(1000 * 10);
@@ -90,8 +98,12 @@ public class Caker {
                     //request.setParser(new JacksonFactory().createJsonObjectParser());
                 });
 
+
         mHttpRequestFactory = factory;
     }
+    
+    
+    
 
     public HttpResponse executeGet(GenericUrl url) throws IOException {
         HttpRequest request = mHttpRequestFactory.buildGetRequest(url);
@@ -320,4 +332,7 @@ public class Caker {
 
     }
 
+    
 }
+
+  
